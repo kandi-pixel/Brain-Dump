@@ -598,6 +598,37 @@
         <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSR4NXK3n7q5aGA1Lpd/yuWcfCDSN0/PQfS4HImS47t6YUBkPXK3n7q5aGA1Lpd/yuWcfCDSN0/PQfS4HImS47t6YUBkPXK3n7q5aGA1Lpd/yuWcfCDSN0/PQfS4HImS47t6YUBkPXK3n7q5aGA1Lpd/yuWcfCDSN0/PQfS4HImS47t6YUBkPXK3n7q5aGA1Lpd/yuWcfCDSN0/PQfS4HImS47t6YUBkPXK3n7q5aGA1Lpd/yuWcfCDSN0/PQfS4HImS47t6YUBkP" type="audio/wav">
     </audio>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyD452521-Wz9LwIYKGDzvtvGtW-qra-uAo",
+            authDomain: "brain-dump-0.firebaseapp.com",
+            projectId: "brain-dump-0",
+            storageBucket: "brain-dump-0.firebasestorage.app",
+            messagingSenderId: "572034770958",
+            appId: "1:572034770958:web:d18868befd06cecba3f45f"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Make db available globally
+        window.db = db;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.getDoc = getDoc;
+        window.onSnapshot = onSnapshot;
+
+        // Signal that Firebase is ready
+        window.firebaseReady = true;
+        if (window.initApp) window.initApp();
+    </script>
+
     <script>
         let currentPage = 'fullboard';
         let timerInterval = null;
@@ -663,26 +694,99 @@
             });
         });
 
-        function saveData() {
-            localStorage.setItem('taskboardData', JSON.stringify({ tasks, pages, taskIdCounter }));
+        async function saveData() {
+            if (!window.db) return;
+
+            try {
+                const docRef = window.doc(window.db, 'brainDump', 'mainData');
+                await window.setDoc(docRef, {
+                    tasks: tasks,
+                    pages: pages,
+                    taskIdCounter: taskIdCounter,
+                    lastUpdated: new Date().toISOString()
+                });
+                console.log('✅ Data saved to Firebase');
+            } catch (error) {
+                console.error('Error saving to Firebase:', error);
+                // Fallback to localStorage
+                localStorage.setItem('taskboardData', JSON.stringify({ tasks, pages, taskIdCounter }));
+            }
         }
 
-        function loadData() {
-            const saved = localStorage.getItem('taskboardData');
-            if (saved) {
-                const data = JSON.parse(saved);
-                if (data.tasks) tasks = data.tasks;
-                if (data.pages) {
-                    // Merge saved page names with default structure
-                    Object.keys(data.pages).forEach(key => {
-                        if (pages[key]) {
-                            pages[key].name = data.pages[key].name;
-                            pages[key].columns = data.pages[key].columns;
-                        }
-                    });
+        async function loadData() {
+            if (!window.db) {
+                // Fallback to localStorage if Firebase not ready
+                const saved = localStorage.getItem('taskboardData');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    if (data.tasks) tasks = data.tasks;
+                    if (data.pages) {
+                        Object.keys(data.pages).forEach(key => {
+                            if (pages[key]) {
+                                pages[key].name = data.pages[key].name;
+                                pages[key].columns = data.pages[key].columns;
+                            }
+                        });
+                    }
+                    if (data.taskIdCounter) taskIdCounter = data.taskIdCounter;
                 }
-                if (data.taskIdCounter) taskIdCounter = data.taskIdCounter;
+                return;
             }
+
+            try {
+                const docRef = window.doc(window.db, 'brainDump', 'mainData');
+                const docSnap = await window.getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.tasks) tasks = data.tasks;
+                    if (data.pages) {
+                        Object.keys(data.pages).forEach(key => {
+                            if (pages[key]) {
+                                pages[key].name = data.pages[key].name;
+                                pages[key].columns = data.pages[key].columns;
+                            }
+                        });
+                    }
+                    if (data.taskIdCounter) taskIdCounter = data.taskIdCounter;
+                    console.log('✅ Data loaded from Firebase');
+                } else {
+                    console.log('No data in Firebase, using defaults');
+                }
+            } catch (error) {
+                console.error('Error loading from Firebase:', error);
+            }
+        }
+
+        function setupRealtimeSync() {
+            if (!window.db || !window.onSnapshot) return;
+
+            const docRef = window.doc(window.db, 'brainDump', 'mainData');
+
+            window.onSnapshot(docRef, (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+
+                    // Only update if data is newer (prevent loops)
+                    if (data.lastUpdated && data.lastUpdated !== window.lastLoadedTimestamp) {
+                        window.lastLoadedTimestamp = data.lastUpdated;
+
+                        if (data.tasks) tasks = data.tasks;
+                        if (data.pages) {
+                            Object.keys(data.pages).forEach(key => {
+                                if (pages[key]) {
+                                    pages[key].name = data.pages[key].name;
+                                    pages[key].columns = data.pages[key].columns;
+                                }
+                            });
+                        }
+                        if (data.taskIdCounter) taskIdCounter = data.taskIdCounter;
+
+                        renderBoard();
+                        console.log('🔄 Real-time update received');
+                    }
+                }
+            });
         }
 
         function editTab(tabButton, pageKey) {
@@ -1261,9 +1365,18 @@
             renderBoard();
         }
 
-        // Initialize
-        loadData();
-        renderBoard();
+        // Initialize app
+        window.initApp = async function() {
+            await loadData();
+            renderBoard();
+            setupRealtimeSync();
+            console.log('🚀 Brain Dump initialized with Firebase real-time sync!');
+        };
+
+        // Start initialization if Firebase is already ready
+        if (window.firebaseReady) {
+            window.initApp();
+        }
     </script>
 </body>
 </html>
