@@ -120,6 +120,84 @@
             margin-bottom: 20px;
             flex-wrap: wrap;
             justify-content: center;
+            align-items: center;
+        }
+
+        .add-page-btn {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #1a5f4a;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-page-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .add-column-btn {
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #2d3748;
+            transition: all 0.3s;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+        }
+
+        .add-column-btn:hover {
+            background: linear-gradient(135deg, #fed6e3 0%, #a8edea 100%);
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .delete-page-btn {
+            margin-left: 8px;
+            color: #c53030;
+            cursor: pointer;
+            font-size: 0.9em;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .tab:hover .delete-page-btn {
+            opacity: 1;
+        }
+
+        .column-header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .delete-column-btn {
+            background: #fee;
+            color: #c53030;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            opacity: 0.7;
+            transition: all 0.2s;
+        }
+
+        .delete-column-btn:hover {
+            opacity: 1;
+            background: #fca5a5;
         }
 
         .tab {
@@ -554,20 +632,25 @@
             </div>
         </div>
 
-        <div class="tabs">
+        <div class="tabs" id="tabsContainer">
             <button class="tab active" onclick="switchPage('fullboard')">Full Board</button>
             <button class="tab" onclick="switchPage('taxseason')" ondblclick="editTab(this, 'taxseason')">
                 <span class="tab-editable">Tax Season</span>
+                <span class="delete-page-btn" onclick="event.stopPropagation(); deletePage('taxseason')">✕</span>
             </button>
             <button class="tab" onclick="switchPage('languageschool')" ondblclick="editTab(this, 'languageschool')">
                 <span class="tab-editable">Language School</span>
+                <span class="delete-page-btn" onclick="event.stopPropagation(); deletePage('languageschool')">✕</span>
             </button>
             <button class="tab" onclick="switchPage('appdev')" ondblclick="editTab(this, 'appdev')">
                 <span class="tab-editable">App Dev</span>
+                <span class="delete-page-btn" onclick="event.stopPropagation(); deletePage('appdev')">✕</span>
             </button>
             <button class="tab" onclick="switchPage('immigration')" ondblclick="editTab(this, 'immigration')">
                 <span class="tab-editable">Immigration/Apartment</span>
+                <span class="delete-page-btn" onclick="event.stopPropagation(); deletePage('immigration')">✕</span>
             </button>
+            <button class="add-page-btn" onclick="addNewPage()">+ Add New Page</button>
         </div>
 
         <div id="board" class="board"></div>
@@ -917,10 +1000,25 @@
                 column.className = 'column';
                 column.dataset.column = colName;
 
+                const headerContainer = document.createElement('div');
+                headerContainer.className = 'column-header-container';
+
                 const header = document.createElement('h2');
                 header.textContent = colName;
                 makeColumnHeaderEditable(header, currentPage, colName);
-                column.appendChild(header);
+
+                headerContainer.appendChild(header);
+
+                // Add delete column button (not on fullboard)
+                if (currentPage !== 'fullboard') {
+                    const deleteColBtn = document.createElement('button');
+                    deleteColBtn.className = 'delete-column-btn';
+                    deleteColBtn.textContent = '✕';
+                    deleteColBtn.onclick = () => deleteColumn(colName);
+                    headerContainer.appendChild(deleteColBtn);
+                }
+
+                column.appendChild(headerContainer);
 
                 const columnTasks = tasksToShow[colName] || [];
                 columnTasks.forEach(task => {
@@ -957,6 +1055,15 @@
 
                 board.appendChild(column);
             });
+
+            // Add "Add Column" button (not on fullboard)
+            if (currentPage !== 'fullboard') {
+                const addColumnBtn = document.createElement('button');
+                addColumnBtn.className = 'add-column-btn';
+                addColumnBtn.textContent = '+ Add Column';
+                addColumnBtn.onclick = addNewColumn;
+                board.appendChild(addColumnBtn);
+            }
 
             updateStats();
         }
@@ -1363,6 +1470,129 @@
             event.target.classList.add('active');
 
             renderBoard();
+        }
+
+        function addNewPage() {
+            const pageName = prompt('Enter a name for the new page:');
+            if (!pageName || pageName.trim() === '') return;
+
+            // Create a unique page key
+            const pageKey = pageName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            // Check if page already exists
+            if (pages[pageKey]) {
+                alert('A page with this name already exists!');
+                return;
+            }
+
+            // Create new page
+            pages[pageKey] = {
+                name: pageName,
+                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog']
+            };
+
+            // Initialize empty columns
+            tasks[pageKey] = {};
+            pages[pageKey].columns.forEach(col => {
+                tasks[pageKey][col] = [];
+            });
+
+            saveData();
+            renderTabs();
+            switchPage(pageKey);
+        }
+
+        function deletePage(pageKey) {
+            if (pageKey === 'fullboard') return;
+
+            const confirmDelete = confirm(`Are you sure you want to delete "${pages[pageKey].name}"? All tasks will be lost.`);
+            if (!confirmDelete) return;
+
+            delete pages[pageKey];
+            delete tasks[pageKey];
+
+            saveData();
+            renderTabs();
+            switchPage('fullboard');
+        }
+
+        function addNewColumn() {
+            const colName = prompt('Enter a name for the new column:');
+            if (!colName || colName.trim() === '') return;
+
+            // Check if column already exists
+            if (pages[currentPage].columns.includes(colName)) {
+                alert('A column with this name already exists!');
+                return;
+            }
+
+            // Add column to current page
+            pages[currentPage].columns.push(colName);
+            tasks[currentPage][colName] = [];
+
+            saveData();
+            renderBoard();
+        }
+
+        function deleteColumn(colName) {
+            const columnTasks = tasks[currentPage][colName] || [];
+
+            if (columnTasks.length > 0) {
+                const confirmDelete = confirm(`Delete column "${colName}"? It has ${columnTasks.length} task(s). They will be lost.`);
+                if (!confirmDelete) return;
+            }
+
+            // Remove column from page
+            pages[currentPage].columns = pages[currentPage].columns.filter(c => c !== colName);
+            delete tasks[currentPage][colName];
+
+            saveData();
+            renderBoard();
+        }
+
+        function renderTabs() {
+            const tabsContainer = document.getElementById('tabsContainer');
+            tabsContainer.innerHTML = '';
+
+            // Full Board tab (always first, can't be deleted)
+            const fullBoardTab = document.createElement('button');
+            fullBoardTab.className = 'tab' + (currentPage === 'fullboard' ? ' active' : '');
+            fullBoardTab.textContent = 'Full Board';
+            fullBoardTab.onclick = () => switchPage('fullboard');
+            tabsContainer.appendChild(fullBoardTab);
+
+            // User-created tabs
+            Object.keys(pages).forEach(pageKey => {
+                if (pageKey === 'fullboard') return;
+
+                const tab = document.createElement('button');
+                tab.className = 'tab' + (currentPage === pageKey ? ' active' : '');
+                tab.onclick = () => switchPage(pageKey);
+                tab.ondblclick = () => editTab(tab, pageKey);
+
+                const span = document.createElement('span');
+                span.className = 'tab-editable';
+                span.textContent = pages[pageKey].name;
+
+                const deleteBtn = document.createElement('span');
+                deleteBtn.className = 'delete-page-btn';
+                deleteBtn.textContent = '✕';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deletePage(pageKey);
+                };
+
+                tab.appendChild(span);
+                tab.appendChild(deleteBtn);
+                tabsContainer.appendChild(tab);
+            });
+
+            // Add Page button
+            const addBtn = document.createElement('button');
+            addBtn.className = 'add-page-btn';
+            addBtn.textContent = '+ Add New Page';
+            addBtn.onclick = addNewPage;
+            tabsContainer.appendChild(addBtn);
         }
 
         // Initialize app
