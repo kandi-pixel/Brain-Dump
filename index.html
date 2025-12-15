@@ -422,6 +422,15 @@
             transition: all 0.2s;
         }
 
+        .complete-btn {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .complete-btn:hover {
+            background: #6ee7b7;
+        }
+
         .delete-btn {
             background: #fee;
             color: #c53030;
@@ -728,19 +737,19 @@
             },
             taxseason: {
                 name: 'Tax Season',
-                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog']
+                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog', 'Done']
             },
             languageschool: {
                 name: 'Language School',
-                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog']
+                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog', 'Done']
             },
             appdev: {
                 name: 'App Dev',
-                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog']
+                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog', 'Done']
             },
             immigration: {
                 name: 'Immigration/Apartment',
-                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog']
+                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog', 'Done']
             }
         };
 
@@ -1189,18 +1198,24 @@
                 const actions = document.createElement('div');
                 actions.className = 'task-actions';
 
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'task-btn delete-btn';
-                deleteBtn.textContent = '🗑️ Delete';
-                deleteBtn.onclick = () => deleteTask(task.id);
+                const completeBtn = document.createElement('button');
+                completeBtn.className = 'task-btn complete-btn';
+                completeBtn.textContent = '✓ Complete';
+                completeBtn.onclick = () => markTaskComplete(task.id);
 
                 const moveBtn = document.createElement('button');
                 moveBtn.className = 'task-btn move-btn';
                 moveBtn.textContent = '↔️ Move';
                 moveBtn.onclick = () => showMoveModal(task);
 
-                actions.appendChild(deleteBtn);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'task-btn delete-btn';
+                deleteBtn.textContent = '🗑️ Delete';
+                deleteBtn.onclick = () => deleteTask(task.id);
+
+                actions.appendChild(completeBtn);
                 actions.appendChild(moveBtn);
+                actions.appendChild(deleteBtn);
                 taskEl.appendChild(actions);
             }
 
@@ -1231,6 +1246,24 @@
                     document.execCommand('selectAll', false, null);
                 }
             }, 100);
+        }
+
+        function markTaskComplete(taskId) {
+            // Find the task in current page
+            let foundTask = null;
+            let fromColumn = null;
+
+            Object.keys(tasks[currentPage]).forEach(colName => {
+                const task = tasks[currentPage][colName].find(t => t.id === taskId);
+                if (task) {
+                    foundTask = task;
+                    fromColumn = colName;
+                }
+            });
+
+            if (foundTask && fromColumn !== 'Done') {
+                moveTaskBetweenColumns(currentPage, fromColumn, 'Done', foundTask);
+            }
         }
 
         function deleteTask(taskId) {
@@ -1306,7 +1339,8 @@
             let title = text;
 
             // Detect column
-            if (/(today|right now|asap)/i.test(text)) column = 'Today';
+            if (/(done|completed|finished)/i.test(text)) column = 'Done';
+            else if (/(today|right now|asap)/i.test(text)) column = 'Today';
             else if (/(tomorrow|tmr|tmrw)/i.test(text)) column = 'Tomorrow';
             else if (/(this week|soon)/i.test(text)) column = 'This Week';
             else if (/(this month)/i.test(text)) column = pages[currentPage].columns.includes('This Month') ? 'This Month' : 'This Week';
@@ -1323,7 +1357,7 @@
 
             // Clean up title
             title = title
-                .replace(/(today|tomorrow|tmr|tmrw|right now|asap|this week|soon|this month|eventually|someday|later|urgent|important|!!!|low priority|maybe|james|kandra|both)/gi, '')
+                .replace(/(done|completed|finished|today|tomorrow|tmr|tmrw|right now|asap|this week|soon|this month|eventually|someday|later|urgent|important|!!!|low priority|maybe|james|kandra|both)/gi, '')
                 .trim();
 
             // Map to current page columns
@@ -1488,7 +1522,7 @@
             // Create new page
             pages[pageKey] = {
                 name: pageName,
-                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog']
+                columns: ['Today', 'Tomorrow', 'This Week', 'Backlog', 'Done']
             };
 
             // Initialize empty columns
